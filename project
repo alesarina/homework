@@ -1,0 +1,143 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import time
+import os
+if not os.path.exists('Kabardino-Balkarskaya_Pravda'):
+    os.mkdir('Kabardino-Balkarskaya_Pravda')
+import csv
+import re
+import urllib.request
+user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64)'
+
+commonUrl = 'http://kbpravda.ru/articles?page='
+articles_pages = [] #массив со страницами статей
+for i in range(0, 30):
+    pageUrl = commonUrl + str(i)
+    articles_pages.append(pageUrl)
+    
+all_articles = [] #массив со всеми ссылками на новости
+for page in articles_pages:
+    articles_links = []#с каждой страницы по очереди выкачиваем все ссылки на новости
+    time.sleep(5)
+    req = urllib.request.Request(page, headers={'User-Agent':user_agent})
+    with urllib.request.urlopen(req) as response:
+        ht = response.read().decode('utf-8')
+    relinks = re.compile('<div .*? class="node node-article node-promoted node-teaser clearfix".*?>.*?<h2>.*?<a href="(.*?)">.*?</a>.*?</h2>.*?</div>', flags=re.U | re.DOTALL)
+    links = relinks.findall(ht)
+    regTag = re.compile('<.*?>', flags=re.DOTALL)
+    regSpace = re.compile('\s{2,}', flags=re.DOTALL)
+    for l in links:
+        clean_l= regSpace.sub("", l)
+        clean_l = regTag.sub(" ", clean_l)
+        articles_links.append(clean_l)
+        all_articles.append(l)
+print('Общее количество статей: '+str(len(all_articles)))
+f = open ('articles.txt', 'a') #запись всех найденных ссылок в текстовый файл для удобства дальнейшей работы
+for link in all_articles:
+    print('http://kbpravda.ru' + link, end='\n', file=f)
+f.close()
+
+f = open('articles.txt', 'r')
+links = [link.strip() for link in f.readlines()] #собираем все ссылки из файла в массив
+total_length = 0
+
+#для метатаблицы
+meta_table = open('Kabardino-Balkarskaya_Pravda\metatable.csv', 'w')
+title_writer = csv.writer(meta_table, delimiter='\t')
+title_row = ['path','author','sex','birthday','header','created','sphere','genre_fi','type','topic','chronotop','style','audience_age','audience_level','audience_size','source','publication','publisher','publ_year','medium','country','region','language']
+title_writer.writerow(title_row)
+meta_table.close()
+
+#обработка каждой статьи отдельно
+for i in range(len(links)):
+    time.sleep(3)
+    req = urllib.request.Request(links[i], headers={'User-Agent':user_agent})
+    with urllib.request.urlopen(req) as response:
+        ht = response.read().decode('utf-8')
+        
+    #ищем заголовок
+    reTitle = re.compile('<div id="content" class="column">.*?<div class="section">.*?<h1 class="title" id="page-title"\W*(.*?)\s*</h1>.*?</div>.*?</div>', flags=re.U | re.DOTALL)
+    title = reTitle.findall(ht)
+    regTag = re.compile('<.*?>', flags=re.DOTALL)
+    regSpace = re.compile('\s{2,}', flags=re.DOTALL)
+    clean_t = regSpace.sub("", str(title))
+    clean_t = regTag.sub(" ", clean_t)
+    title = clean_t[2:-2]
+
+    #ищем автора
+    reAuthor = re.compile('<div class="field-item even">(.*?)</div>', flags=re.U | re.DOTALL)
+    author = reAuthor.findall(ht)
+    regTag = re.compile('<.*?>', flags=re.DOTALL)
+    regSpace = re.compile('\s{2,}', flags=re.DOTALL)
+    clean_a = regSpace.sub("", str(author))
+    clean_a = regTag.sub(" ", clean_a)
+    author = clean_a[2:-2]
+    if str(author) == str(''):
+        author = 'Noname'
+
+    #ищем дату
+    reDate = re.compile('<div class="meta submitted">.*?<span .*? content="(.*?)" .*?>.*?</span>.*?</div>', flags=re.U | re.DOTALL)
+    date = reDate.findall(ht)
+    regTag = re.compile('<.*?>', flags=re.DOTALL)
+    regSpace = re.compile('\s{2,}', flags=re.DOTALL)
+    clean_d = regSpace.sub("", str(date))
+    date = regTag.sub(" ", clean_d)
+    year = date[2:6]
+    month = date[7:9]
+    day = date[10:12]
+    date = day + '.' + month + '.' + year
+
+    #ищем текст
+    reText = re.compile('<div class="field-item even" .*?>.*?<p>(.*?)</p>.*?</div>', flags=re.U | re.DOTALL)
+    text = reText.findall(ht)
+    regTag = re.compile('<br.*?>', flags=re.U | re.DOTALL)
+    regAllTags = re.compile('<.*?>', flags=re.U | re.DOTALL)
+    clean_t = regTag.sub('\n', str(text))
+    clean_t = regAllTags.sub('', clean_t)
+    clean_t = clean_t.replace('\\xa0', '')
+    clean_t = clean_t.replace('\\n', '')
+    text = clean_t[2:-2]
+    tl = text.split(' ')
+    length = len(tl)
+    total_length += length
+    
+    #запись в папку файла с неразмеченным текстом
+    final_text = '@au %s \n@ti %s \n@da %s \n@topic \n@url %s \n%s'
+    path_name = 'Kabardino-Balkarskaya_Pravda'+'\\'+'plain'+'\\'+str(year)+'\\'+str(month)
+    file_name = str(path_name)+'\\'+'article'+str(i)+'.txt'
+    if not os.path.exists(path_name):
+        os.makedirs(str(path_name))
+    f = open(str(file_name), 'w', encoding='utf-8')
+    print(text, file=f)
+    f.close()
+    
+    #запись в csv-таблицу
+    wmt = open('Kabardino-Balkarskaya_Pravda\metatable.csv', 'a')
+    inf_writer = csv.writer(wmt, delimiter='\t')
+    inf_row = [file_name,author,'','',title,date,'публицистика','','','','','нейтральный','н-возраст','н-уровень','республиканская',links[i],'Кабардино-Балкарская Правда','',year,'газета','Россия','Кабардино-Балкарская Республика','ru']
+    inf_writer.writerow(inf_row)
+    wmt.close()
+    
+    #разметка mystem
+    plain_path_name = 'Kabardino-Balkarskaya_Pravda'+'\\'+'mystem-plain'+'\\'+str(year)+'\\'+str(month)
+    mst_plain_file_name = plain_path_name+'\\'+'article'+str(i)+'.txt'
+    xml_path_name = 'Kabardino-Balkarskaya_Pravda'+'\\'+'mystem-xml'+'\\'+str(year)+'\\'+str(month)
+    mst_xml_file_name = xml_path_name+'\\'+'article'+str(i)+'.xml'
+    if not os.path.exists(plain_path_name):
+        os.makedirs(str(plain_path_name))
+    if not os.path.exists(xml_path_name):
+        os.makedirs(str(xml_path_name))
+    inp = r' C:\Users\1\Desktop' + os.sep + file_name
+    plain_outp = r' C:\Users\1\Desktop' + os.sep + mst_plain_file_name
+    xml_outp = r' C:\Users\1\Desktop' + os.sep + mst_xml_file_name
+    os.system(r'C:\Users\1\Desktop\mystem.exe -id' + inp + plain_outp)
+    os.system(r'C:\Users\1\Desktop\mystem.exe -id' + inp + xml_outp)
+    
+    #дозаписываем метаинформацию в файл с чистым текстом
+    f = open(str(file_name), 'w')
+    print(final_text %(author, title, date, links[i], text), file=f)
+    f.close()
+
+print('Общее количество слов в статьях: ' + str(total_length))    
+print('Done')
