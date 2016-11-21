@@ -1,0 +1,56 @@
+import re
+import time
+import json
+import urllib.request
+user_agent = 'Mozilla/5.0 (Windows NT 6.1; Win64; x64)'
+common_url = 'file:///C:/Users/1/Desktop/Kontr/thai_pages/'
+all_pages = []
+
+def download_page(pageUrl):
+    try:
+        page = urllib.request.urlopen(pageUrl)
+        text = page.read().decode('utf-8')
+        all_pages.append(pageUrl)
+    except:
+        return
+
+for i in range(187, 207):
+    for j in range(2, 75):
+        pageUrl = common_url + str(i) + '.' + str(j) + '.html'
+        download_page(pageUrl) 
+
+all_thai = []
+all_eng = []
+DictionaryTE = {}
+for i in range (len(all_pages)):
+    time.sleep(2)
+    req = urllib.request.Request(all_pages[i], headers={'User-Agent':user_agent})
+    with urllib.request.urlopen(req) as response:
+        ht = response.read().decode('UTF-8')
+    reThaiWord = re.compile('<tr><td class=th><a href=.*?>(.*?)</a>.*?</td>.*?</tr>', flags=re.U | re.DOTALL)
+    ThaiWords = reThaiWord.findall(ht)
+    reTag = re.compile('<.*?>', flags=re.U | re.DOTALL)
+    for word in ThaiWords:
+        clean_w = reTag.sub('', str(word))
+        all_thai.append(clean_w)
+    reEngWords = re.compile('<tr>.*?<td class=pos>.*?</td>.*?<td>(.*?)</td>.*?</tr>', flags=re.U | re.DOTALL)
+    EngWords = reEngWords.findall(ht)
+    reSymb = re.compile('&#[0-9a-zA-Z]*;', flags=re.U | re.DOTALL)
+    for word in EngWords:
+        clean_w = reTag.sub('', str(word))
+        clean_w = reSymb.sub('', clean_w)
+        all_eng.append(clean_w)
+for i in range(len(all_thai)):
+        tw = all_thai[i]
+        te = all_eng[i]
+        DictionaryTE[tw]=te
+
+js_file1 = open('TEdictionary.json', 'w')
+js1 = json.dump(DictionaryTE, js_file1, ensure_ascii=True)
+js_file1.close()
+
+DictionaryET = {}
+for i in range (3):
+    DictionaryET[all_eng[i]]=all_thai[i]
+js_file2 = open('ETdictionary.json', 'w')
+js2 = json.dump(DictionaryET, js_file2, ensure_ascii=True)
