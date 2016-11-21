@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	    <meta charset='utf-8'>
+	    <title>Результаты поиска</title>
+    </head>
+    <body>
+      <h><b>Результаты поиска</b></h>
+      <p>В слове {% if word=='tvorog' %} <i>творог</i> {% elif word=='svekla' %} <i>свекла</i> {% elif word=='schavel' %} <i>щавель</i> {% endif %}
+        {{ snd_total }}% {% if gender=='women' %} женщин {% elif gender=='men' %} мужчин {% endif %} ставят ударение на последний слог, а {{ fst_total }}% - на первый. Интересно, не правда ли?</p>
+    </body>
+</html>
